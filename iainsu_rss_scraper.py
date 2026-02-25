@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """
-IAINSU RSS Feed Scraper (Playwright)
-======================================
-Scrape homepage + konten artikel lengkap dari iainsurakarta.ac.id.
-Menggunakan Playwright untuk bypass Cloudflare.
+IAINSU RSS Feed Scraper (Playwright + Residential Proxy)
+=========================================================
+Menggunakan Playwright + Geonode residential proxy untuk bypass Cloudflare.
 """
 
 from playwright.sync_api import sync_playwright
@@ -30,6 +29,12 @@ BULAN_ID = {
     'september': 9, 'oktober': 10, 'november': 11, 'desember': 12
 }
 
+# Proxy dari environment variables (GitHub Secrets)
+PROXY_HOST = os.environ.get('PROXY_HOST', '')
+PROXY_PORT = os.environ.get('PROXY_PORT', '')
+PROXY_USER = os.environ.get('PROXY_USER', '')
+PROXY_PASS = os.environ.get('PROXY_PASS', '')
+
 browser = None
 context = None
 page = None
@@ -37,10 +42,25 @@ page = None
 def init_browser():
     global browser, context, page
     pw = sync_playwright().start()
-    browser = pw.chromium.launch(
-        headless=True,
-        args=['--no-sandbox','--disable-setuid-sandbox','--disable-blink-features=AutomationControlled','--disable-dev-shm-usage']
-    )
+
+    launch_args = {
+        'headless': True,
+        'args': ['--no-sandbox','--disable-setuid-sandbox','--disable-blink-features=AutomationControlled','--disable-dev-shm-usage']
+    }
+
+    # Konfigurasi proxy jika tersedia
+    if PROXY_HOST and PROXY_PORT and PROXY_USER and PROXY_PASS:
+        launch_args['proxy'] = {
+            'server': f'http://{PROXY_HOST}:{PROXY_PORT}',
+            'username': PROXY_USER,
+            'password': PROXY_PASS,
+        }
+        print(f"[*] Proxy: {PROXY_HOST}:{PROXY_PORT} (residential)")
+    else:
+        print("[!] Proxy TIDAK dikonfigurasi - mungkin akan diblokir Cloudflare")
+
+    browser = pw.chromium.launch(**launch_args)
+
     context = browser.new_context(
         viewport={'width': 1920, 'height': 1080},
         user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -203,7 +223,7 @@ def generate_rss(articles_data):
     <link>{html.escape(FEED_LINK)}</link>
     <language>id</language>
     <lastBuildDate>{now}</lastBuildDate>
-    <generator>IAINSU RSS Scraper - Playwright (GitHub Actions)</generator>
+    <generator>IAINSU RSS Scraper - Playwright + Proxy (GitHub Actions)</generator>
 '''
     for a in articles_data:
         if not a: continue
@@ -229,12 +249,13 @@ def generate_rss(articles_data):
 
 def main():
     print("=" * 60)
-    print("  IAINSU RSS Scraper (Playwright)")
+    print("  IAINSU RSS Scraper (Playwright + Residential Proxy)")
     print("=" * 60)
     print(f"  Feed Title : {FEED_TITLE}")
     print(f"  Output     : {OUTPUT_FILE}")
     print(f"  Max Artikel: {MAX_ARTICLES}")
     print(f"  Source URL : {HOMEPAGE_URL}")
+    print(f"  Proxy      : {'Ya' if PROXY_HOST else 'Tidak'}")
     print("=" * 60)
     os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
     pw = init_browser()
