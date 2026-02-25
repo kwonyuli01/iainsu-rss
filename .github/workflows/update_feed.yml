@@ -26,7 +26,10 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install requests beautifulsoup4 lxml
+        run: |
+          pip install playwright beautifulsoup4 lxml
+          playwright install chromium
+          playwright install-deps chromium
 
       - name: Run scraper
         run: python iainsu_rss_scraper.py
